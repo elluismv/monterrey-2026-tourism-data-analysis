@@ -1,0 +1,1481 @@
+---
+title: "Evidencia1_PlaneacionEstrategica"
+output: html_document
+date: "2025-05-05"
+---
+
+# LIBRERIAS
+
+```{r, message=FALSE, warning=FALSE}
+library(classInt)
+library(corrplot)
+library(dlookr)
+library(dplyr)
+library(forecast)
+library(foreign)
+library(forcats)
+library(ggmap)
+library(ggplot2)
+library(gridExtra)
+library(htmltools)
+library(jsonlite)
+library(knitr)
+library(leaflet)
+library(leaflet.extras)
+library(leaflet.extras2)
+library(leafsync)
+library(lubridate)
+library(mapview)
+library(openxlsx)
+library(patchwork)
+library(RColorBrewer)
+library(rgeoda)
+library(rlang)
+library(scales)
+library(sf)
+library(SnowballC)
+library(sp)
+library(spdep)
+library(stringr)
+library(syuzhet)
+library(tigris)
+library(tidyr)
+library(tidyverse)
+library(tm)
+library(tmap)
+library(viridis)
+library(wordcloud)
+library(wordcloud2)
+library(googleway) 
+library(readxl)
+library(purrr)
+library(spatialreg)
+library(stargazer)
+library(regclass)
+library(raster)
+library(spgwr)
+library(plotly)
+```
+
+
+## Monterrey Capital de Nuevo León
+```{r}
+ubicacion_monterrey <- data.frame(
+  Nombre = "MOnterrey",
+  Longitud = -100.3161,
+  Latitud = 25.6866
+)
+icons <- awesomeIcons(
+  icon = 'home',
+  iconColor = 'white',
+  markerColor = 'blue',
+  library = 'fa'
+)
+
+leaflet(ubicacion_monterrey) %>%
+  addTiles() %>%
+  addAwesomeMarkers(
+    lng = ~Longitud, lat = ~Latitud,
+    icon = icons,
+    popup = ~Nombre
+  )
+
+```
+
+## Los 11 destinos más turísticos según Viva Aerobus.
+```{r}
+destinos <- data.frame(
+  Nombre = c(
+    "Parque Fundidora",
+    "Macroplaza",
+    "Paseo Santa Lucía",
+    "Mirador del Obispado",
+    "Cerro de la Silla",
+    "Grutas de García",
+    "Cascada Cola de Caballo",
+    "Parque La Huasteca",
+    "Nido de los Aguiluchos",
+    "Parque Ecológico Chipinque",
+    "Grutas de Bustamante"
+  ),
+  Latitud = c(
+    25.67806,
+    25.66861,
+    25.66889,
+    25.67239,
+    25.62306,
+    25.84933,
+    25.36232,
+    25.60900,
+    25.65435,
+    25.61910,
+    26.50056
+  ),
+  Longitud = c(
+    -100.28333,
+    -100.30972,
+    -100.31000,
+    -100.34100,
+    -100.24278,
+    -100.52389,
+    -100.16347,
+    -100.50000,
+    -100.47032,
+    -100.36029,
+    -100.52667
+  )
+)
+
+# Visualiza los destinos en un mapa interactivo
+leaflet(destinos) %>%
+  addTiles() %>%
+  addAwesomeMarkers(
+    lng = ~Longitud,
+    lat = ~Latitud,
+    popup = ~Nombre
+  )
+
+```
+
+
+# BASES DE DATOS
+##DF's
+```{r}
+df1 <-  read_excel('Encuesta_Eventos_Nuevo_Leon.xlsx', sheet= 'Turismo_N.L')
+df1 <- df1[, !names(df1) %in% c("Año", "Mes")]
+```
+
+
+```{r}
+df2 <-  read_excel('Encuesta_Eventos_Nuevo_Leon.xlsx', sheet= 'Encuesta_MODECULT_MTY19-24',n_max = 1260)
+#df1 <- df1[, !names(df1) %in% c("Año", "Mes")]
+```
+
+```{r}
+df3 <-  read_excel('Encuesta_Eventos_Nuevo_Leon.xlsx', sheet= 'Encuesta_PalNorte')
+df3 <- df3[, !names(df3) %in% c("Name")]
+df3$`Start time` <- as.POSIXct(df3$`Start time`, format = "%Y-%m-%d %H:%M:%S")
+df3$`Completion time` <- as.POSIXct(df3$`Completion time`, format = "%Y-%m-%d %H:%M:%S")
+df3[] <- lapply(df3, function(x) if (is.character(x)) as.factor(x) else x)
+```
+
+
+
+```{r}
+df4 <-  read_excel('Encuesta_Eventos_Nuevo_Leon.xlsx', sheet= 'Turismo_Z.T')
+df4$metro <- as.factor(df4$metro)
+df4$atraccion_turistica <- as.factor(df4$atraccion_turistica)
+```
+
+```{r}
+df6 <-  read_excel('Encuesta_Eventos_Nuevo_Leon.xlsx', sheet= 'T_Visitantes_AT_N.L')
+df6 <- df6 %>%  filter(Año %in% c("2019","2020","2021","2022","2023","2024"))
+```
+
+```{r}
+df7 <-  read_excel('Encuesta_Eventos_Nuevo_Leon.xlsx', sheet= 'Encuesta_Central_AutoBuses')
+df7 <- df7[, !names(df7) %in% c("Name")]
+df7$`Start time` <- as.POSIXct(df7$`Start time`, format = "%Y-%m-%d %H:%M:%S")
+df7$`Completion time` <- as.POSIXct(df7$`Completion time`, format = "%Y-%m-%d %H:%M:%S")
+df7[] <- lapply(df7, function(x) if (is.character(x)) as.factor(x) else x)
+```
+
+
+```{r}
+df_denue_turismo_CA <- read_sf("INEGI_DENUE_caracteristicas/INEGI_DENUE_19052025.shp", options = "ENCODING=LATIN1")
+df_denue_turismo_CO <- read_sf("INEGI_DENUE_conexas/INEGI_DENUE_19052025.shp", options = "ENCODING=LATIN1")
+```
+
+#### Mapa Municipios
+```{r, message=FALSE, warning=FALSE}
+df_mx_mun_map <- st_read("mx_maps/mx_mpios/Mexican Municipalities.shp")
+nuevo_leon_map <- df_mx_mun_map %>%
+  filter(CVE_ENT == 19)
+nuevo_leon_map_copia <- nuevo_leon_map
+```
+
+```{r}
+codelags <- c(2199, 2200, 2201, 2202, 2203, 2204, 2205, 
+              2206, 2208, 2211, 2221, 2245)
+
+df_mx_zmm_map <- df_mx_mun_map %>%
+  filter(CODELAG %in% codelags)
+```
+
+
+```{r}
+mun_glosario <- data.frame(
+  CVEGEO = sprintf("190%02d", 1:51),
+  NOM_MUN = c(
+    "Abasolo", "Agualeguas", "Los Aldamas", "Allende", "Anáhuac", "Apodaca", "Aramberri", "Bustamante",
+    "Cadereyta Jiménez", "El Carmen", "Cerralvo", "Ciénega de Flores", "China", "Doctor Arroyo",
+    "Doctor Coss", "Doctor González", "Galeana", "García", "San Pedro Garza García", "General Bravo",
+    "General Escobedo", "General Terán", "General Treviño", "General Zaragoza", "General Zuazua",
+    "Guadalupe", "Los Herreras", "Higueras", "Hualahuises", "Iturbide", "Juárez", "Lampazos de Naranjo",
+    "Linares", "Marín", "Melchor Ocampo", "Mier y Noriega", "Mina", "Montemorelos", "Monterrey",
+    "Parás", "Pesquería", "Los Ramones", "Rayones", "Sabinas Hidalgo", "Salinas Victoria",
+    "San Nicolás de los Garza", "Hidalgo", "Santa Catarina", "Santiago", "Vallecillo", "Villaldama"
+  )
+)
+
+mun_glosario$CVEGEO <- as.numeric(mun_glosario$CVEGEO)
+```
+
+```{r}
+nuevo_leon_map <- nuevo_leon_map %>%
+  left_join(mun_glosario, by = c("IDUNICO" = "CVEGEO"))
+nuevo_leon_map_copia <- nuevo_leon_map_copia %>%
+  left_join(mun_glosario, by = c("IDUNICO" = "CVEGEO"))
+```
+
+# EDA
+
+## DF1 - Turismo Nuevo León
+
+### Normalidad Turismo Nuevo León
+```{r}
+df1 %>%
+  dplyr::select(where(is.numeric)) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "valor") %>%
+  ggplot(aes(x = valor)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_wrap(~ variable, scales = "free", ncol = 3) +
+  theme_minimal() +
+  labs(title = "Distribución de Variables Numéricas", x = "Valor", y = "Frecuencia")
+```
+
+
+```{r}
+plot_normality(df1)
+```
+
+
+### Series de Tiempo Turismo Nuevo León
+#### Llegada Turistas Nacionales Nuevo León
+```{r}
+tur_nats <- ts(df1$LLT_nat, start = c(2019), end = c(2024), frequency = 12)
+#plot(tur_nats, type = "l", col = "steelblue", lwd = 2, xlab = "Year", ylab = "Turistas Nacionales", main = "Serie de Tiempo Turistas Nacionales Hospedados en Hoteles")
+plot(decompose(tur_nats))
+```
+
+```{r}
+seasonplot(tur_nats,
+           col = rainbow(6),
+           year.labels = TRUE,
+           year.labels.left = TRUE,
+           main = "Estacionalidad mensual de turistas nacionales",
+           ylab = "Turistas",
+           xlab = "Mes",
+           season.labels = month.abb)
+```
+
+```{r}
+ggplot(df1, aes(x = Fecha, y = LLT_nat)) +
+  geom_line(color = "#1f77b4", size = 1) +
+  labs(title = "Turistas Nacionales Hospedados",
+       subtitle = "Serie mensual 2004–2024",
+       x = "Año",
+       y = "Miles de Turistas",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+```
+
+#### Llegada Turistas Internacionales Nuevo León
+```{r}
+tur_ints <- ts(df1$LLT_ext, start = c(2019), end = c(2024), frequency = 12)
+#plot(tur_ints, type = "l", col = "steelblue", lwd = 2, xlab = "Year", ylab = "Turistas Internacionales", main = "Serie de Tiempo Turistas Extranjeros Hospedados en Hoteles")
+plot(decompose(tur_ints))
+```
+
+```{r}
+seasonplot(tur_ints,
+           col = rainbow(6),
+           year.labels = TRUE,
+           year.labels.left = TRUE,
+           main = "Estacionalidad mensual de turistas internacionales",
+           ylab = "Turistas",
+           xlab = "Mes",
+           season.labels = month.abb)
+```
+
+
+```{r}
+ggplot(df1, aes(x = Fecha, y = LLT_ext)) +
+  geom_line(color = "#1f77b4", size = 1) +
+  labs(title = "Turistas Internacionales Hospedados",
+       subtitle = "Serie mensual 2004–2024",
+       x = "Año",
+       y = "Miles de Turistas",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+```
+#### Ocupación Hotelera Nuevo León
+```{r}
+df1_long <- df1 %>%
+  select(Fecha, CDT, COT) %>%
+  pivot_longer(cols = c(CDT, COT), names_to = "tipo", values_to = "turistas")
+
+ggplot(df1_long, aes(x = Fecha, y = turistas, color = tipo)) +
+  geom_line(size = 1) +
+  scale_color_manual(values = c(CDT = "#1f77b4", COT = "#ff7f0e"),
+                     labels = c("Cuartos Disponibles", "Cuartos Ocupados"),
+                     name = "") +
+  labs(title = "Ocupación Cuartos en Nuevo León",
+       subtitle = "Serie mensual 2004–2024",
+       x = "Año",
+       y = "Cuartos",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60"),
+    legend.position = "top"
+  )
+```
+#### Derrama Económica Nuevo León
+```{r}
+derrama <- ts(df1$DET, start = c(2019), end = c(2024), frequency = 12)
+#plot(derrama, type = "l", col = "steelblue", lwd = 2, xlab = "Year", ylab = "$ Millones de Pesos", main = "Serie de Tiempo Derrama Económica")
+plot(decompose(derrama))
+```
+
+```{r}
+seasonplot(derrama,
+           col = rainbow(6),
+           year.labels = TRUE,
+           year.labels.left = TRUE,
+           main = "Estacionalidad mensual de la derrama económica",
+           ylab = "$ Millones de pesos",
+           xlab = "Mes",
+           season.labels = month.abb)
+```
+
+
+```{r}
+ggplot(df1, aes(x = Fecha, y = DET)) +
+  geom_line(color = "#1f77b4", size = 1) +
+  labs(title = "Derrama Económica en Nuevo León",
+       subtitle = "Serie mensual 2004–2024",
+       x = "Año",
+       y = "Millones de pesos",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+
+```
+
+```{r}
+cuartos_ocupados <- ts(df1$COT, start = c(2004), end = c(2024), frequency = 12)
+plot(cuartos_ocupados, type = "l", col = "steelblue", lwd = 2, xlab = "Year", ylab = "Cuartos", main = "Serie de Tiempo Cuartos Ocupados")
+plot(decompose(cuartos_ocupados))
+```
+
+```{r}
+ggplot(df1, aes(x = Fecha, y = COT)) +
+  geom_line(color = "#1f77b4", size = 1) +
+  labs(title = "Cuartos Ocupados en Nuevo León",
+       subtitle = "Serie mensual 2004–2024",
+       x = "Año",
+       y = "Millones de pesos",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+
+```
+
+```{r}
+total_pasajeros <- ts(df1$TPA, start = c(2019), end = c(2024), frequency = 12)
+plot(total_pasajeros, type = "l", col = "steelblue", lwd = 2, xlab = "Year", ylab = "Cuartos", main = "Serie de Tiempo Pasajeros en Aeropuertos")
+plot(decompose(total_pasajeros))
+```
+
+```{r}
+seasonplot(total_pasajeros,
+           col = rainbow(6),
+           year.labels = TRUE,
+           year.labels.left = TRUE,
+           main = "Estacionalidad mensual de Pasajeros Terminales Aeropuertos",
+           ylab = "Miles de Pasajeros",
+           xlab = "Mes",
+           season.labels = month.abb)
+```
+
+
+```{r}
+ggplot(df1, aes(x = Fecha, y = TPA)) +
+  geom_line(color = "#1f77b4", size = 1) +
+  labs(title = "Total Pasajeros Terminales Aeropuerto",
+       subtitle = "Serie mensual 2004–2024",
+       x = "Año",
+       y = "Miles de pasajeros",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+
+```
+
+#### Correlación Variables Turismo Nuevo León
+```{r corrplot-basic}
+df_num <- df1 %>% dplyr::select(where(is.numeric))
+corr_matrix <- cor(df_num, use = "complete.obs")
+corrplot(
+  corr_matrix,
+  method = "color",             
+  type = "upper",               
+  order = "hclust",              
+  col = colorRampPalette(c("red", "white", "steelblue"))(200),
+  addCoef.col = "black",         
+  tl.col = "black",              
+  tl.cex = 0.9,                  
+  number.cex = 0.7,             
+  diag = FALSE                  
+)
+```
+
+## DF3 - Festival Pal Norte
+### Distribución
+```{r}
+# 1
+ggplot(df3, aes(x = fct_infreq(`¿Cómo compró sus boletos para el festival?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Cómo compró sus boletos para el festival?",
+       x = "Método de compra", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 2
+ggplot(df3, aes(x = fct_infreq(`¿Cuántos días planea asistir al festival?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Cuántos días planea asistir al festival?",
+       x = "Días", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 3
+ggplot(df3, aes(x = fct_infreq(`¿Cuál fue su presupuesto total para los boletos?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Cuál fue su presupuesto total para los boletos?",
+       x = "Presupuesto", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 4
+ggplot(df3, aes(x = fct_infreq(`¿Qué categoría de boletos compró?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Qué categoría de boletos compró?",
+       x = "Categoría", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 5
+ggplot(df3, aes(y = fct_infreq(`¿De qué región o ciudad proviene?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿De qué región o ciudad proviene?",
+       x = "Región", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 6
+ggplot(df3, aes(y = fct_infreq(`¿Cuál es su presupuesto estimado para alojamiento durante el festival?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Presupuesto estimado para alojamiento?",
+       x = "Presupuesto", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 7
+ggplot(df3, aes(y = fct_infreq(`¿Cuánto planea gastar en alimentos y bebidas dentro del festival (por día)?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Gasto en alimentos y bebidas por día?",
+       x = "Monto", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 8
+ggplot(df3, aes(y = fct_infreq(`¿Cuánto planea gastar en transporte por día (incluye taxis, Uber, combustible, estacionamiento, etc.)?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Gasto en transporte por día?",
+       x = "Monto", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 9
+ggplot(df3, aes(y = fct_infreq(`¿Qué otros gastos adicionales tiene planeado realizar? (Seleccione todas las que correspondan)`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Gastos adicionales planeados?",
+       x = "Gasto adicional", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 10
+ggplot(df3, aes(x = fct_infreq(`¿Es la primera vez que asiste al festival Pal' Norte?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Primera vez que asiste al festival?",
+       x = "Respuesta", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 11
+ggplot(df3, aes(x = fct_infreq(`¿Cuál es su rango de edad? (Pregunta demográfica)`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Cuál es su rango de edad?",
+       x = "Rango de edad", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+# 12
+ggplot(df3, aes(x = fct_infreq(`¿Cuál es su ocupación principal?`))) +
+  geom_bar(fill = "steelblue",color = "black", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "¿Cuál es su ocupación principal?",
+       x = "Ocupación", y = "Frecuencia") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 0.5))
+
+```
+
+##DF4 - GeoEspacial Municipal
+### Normalidad
+```{r}
+df4 %>%
+  dplyr::select(where(is.numeric)) %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "valor") %>%
+  ggplot(aes(x = valor)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_wrap(~ variable, scales = "free", ncol = 3) +
+  theme_minimal() +
+  labs(title = "Distribución de Variables Numéricas", x = "Valor", y = "Frecuencia")
+```
+
+### Correlación Variables
+```{r}
+df_num <- df4 %>% dplyr::select(where(is.numeric))
+corr_matrix <- cor(df_num, use = "complete.obs")
+corrplot(
+  corr_matrix,
+  method = "color",             
+  type = "upper",               
+  order = "hclust",              
+  col = colorRampPalette(c("red", "white", "steelblue"))(200),
+  addCoef.col = "black",         
+  tl.col = "black",              
+  tl.cex = 0.9,                  
+  number.cex = 0.7,             
+  diag = FALSE                  
+)
+```
+
+```{r}
+plot_normality(df_num)
+```
+
+```{r}
+summary(df_num)
+```
+
+
+## DF5 - Google Maps
+```{r}
+gmaps_key <- 'AIzaSyDMtkIEvUpFccyUCGxLgXO-TzTcERfzJ3o'
+register_google(key = gmaps_key) 
+zmm_mty <- get_map("Monterrey, Nuevo León", zoom = 12)
+```
+
+```{r}
+#leaflet() %>% 
+  #addTiles() %>% 
+  #setView(-100.31094, 25.66928, zoom = 14) %>% ### Mty downtown area
+  #addMarkers(-100.31094, 25.66928, popup = "Monterrey Downtown Area")
+```
+
+```{r}
+### Macroplaza
+latitude  <- 25.669451729337776
+longitude <- -100.30991297931254
+r <- 15000
+```
+
+```{r}
+search_str <- google_places(search_string = 'Plazas', location=c(latitude,longitude), radius=r, key=gmaps_key)
+```
+
+```{r}
+search_str_add_one <- google_places(search_string = 'Plazas', location=c(latitude,longitude), radius=r, key=gmaps_key, page_token = search_str$next_page_token)
+```
+
+```{r}
+search_str_add_two <- google_places(search_string = 'Plazas', location=c(latitude,longitude), radius=r, key=gmaps_key, page_token = search_str_add_one$next_page_token)
+```
+
+```{r}
+business_name <- c(search_str$results$name, search_str_add_one$results$name, search_str_add_two$results$name)
+business_rating <- c(search_str$results$rating, search_str_add_one$results$rating, search_str_add_two$results$rating)
+user_ratings_total <- c(search_str$results$user_ratings_total, search_str_add_one$results$user_ratings_total,search_str_add_two$results$user_ratings_total)
+place_id <- c(search_str$results$place_id, search_str_add_one$results$place_id, search_str_add_two$results$place_id)
+lat <- c(search_str$results$geometry$location$lat, search_str_add_one$results$geometry$location$lat, search_str_add_two$results$geometry$location$lat)
+lon <- c(search_str$results$geometry$location$lng, search_str_add_one$results$geometry$location$lng, search_str_add_two$results$geometry$location$lng)
+```
+
+```{r}
+data_plazas <- data.frame(business_name,business_rating,user_ratings_total,place_id,lat,lon)
+```
+
+```{r}
+search_str_2 <- google_places(search_string = 'Centro comercial', location=c(latitude,longitude), radius=r, key=gmaps_key)
+```
+
+```{r}
+search_str_add_one_2 <- google_places(search_string = 'Centro comercial', location=c(latitude,longitude), radius=r, key=gmaps_key, page_token = search_str$next_page_token)
+```
+
+```{r}
+search_str_add_two_2 <- google_places(search_string = 'Centro comercial', location=c(latitude,longitude), radius=r, key=gmaps_key, page_token = search_str_add_one$next_page_token)
+```
+
+```{r}
+business_name_2 <- c(search_str_2$results$name, search_str_add_one_2$results$name, search_str_add_two_2$results$name)
+
+business_rating_2 <- c(search_str$results$rating, search_str_add_one_2$results$rating, search_str_add_two_2$results$rating)
+
+user_ratings_total_2 <- c(search_str_2$results$user_ratings_total, search_str_add_one_2$results$user_ratings_total,search_str_add_two_2$results$user_ratings_total)
+
+place_id_2 <- c(search_str_2$results$place_id, search_str_add_one_2$results$place_id, search_str_add_two_2$results$place_id)
+
+lat_2 <- c(search_str_2$results$geometry$location$lat, search_str_add_one_2$results$geometry$location$lat, search_str_add_two_2$results$geometry$location$lat)
+
+lon_2 <- c(search_str_2$results$geometry$location$lng, search_str_add_one_2$results$geometry$location$lng, search_str_add_two_2$results$geometry$location$lng)
+```
+
+```{r}
+data_centro_comercial <- data.frame(business_name_2,business_rating_2,user_ratings_total_2,place_id_2,lat_2,lon_2)
+names(data_centro_comercial) <- c(
+  "business_name", "business_rating", "user_ratings_total",
+  "place_id", "lat", "lon"
+)
+```
+
+```{r}
+data_plazas_comerciales <- bind_rows(data_centro_comercial, data_plazas)
+```
+
+
+```{r}
+plazas_top <- data.frame(
+  Plaza = c(
+    "Paseo San Pedro", "Fashion Drive", "Galerías Monterrey", "Esfera City Center",
+    "Pueblo Serena", "Plaza Fiesta San Agustín", "Plaza Cumbres", "Paseo Comercial La Fe",
+    "Plaza Fiesta Anáhuac", "Nuevo Sur", "Galerías Valle Oriente", "Plaza Sendero San Roque",
+    "Arboleda", "Punto Valle", "Plaza Auriga"
+  ),
+  Municipio = c(
+    "San Pedro Garza García", "San Pedro Garza García", "Monterrey", "Monterrey",
+    "Monterrey", "San Pedro Garza García", "Monterrey", "San Nicolás de los Garza",
+    "San Nicolás de los Garza", "Monterrey", "Monterrey", "Guadalupe",
+    "San Pedro Garza García", "San Pedro Garza García", "San Pedro Garza García"
+  ),
+  Latitud = c(
+    25.65197795707379, 25.65161844565069, 25.68139299086823, 25.576266557661288,
+    25.5773425721535, 25.64931304867253, 25.7319806318081, 25.72018932391338,
+    25.74295334013345, 25.56361188596144, 25.638946293869246, 25.63862441500162,
+    25.64951628334829, 25.65360034678157, 25.6480903966511
+  ),
+  Longitud = c(
+    -100.35938657542624, -100.33570532487794, -100.35486901238367, -100.24468668284352,
+    -100.2479307062595, -100.33651944659958, -100.39611314735431, -100.21896734439969,
+    -100.31337920693532, -100.27562123813231, -100.3410836957911, -100.15540760992052,
+    -100.35568966127931, -100.35846089322715, -100.33931482519715
+  )
+)
+plazas_top
+
+```
+
+
+```{r}
+plazas <- c(
+  "Paseo San Pedro", "Fashion Drive", "Galerías Monterrey", "Esfera City Center",
+  "Pueblo Serena", "Plaza Fiesta San Agustín", "Plaza Cumbres", "Paseo Comercial La Fe",
+  "Plaza Fiesta Anáhuac", "Nuevo Sur", "Galerías Valle Oriente", "Plaza Sendero San Roque",
+  "Arboleda", "Punto Valle", "Plaza Auriga"
+)
+
+
+ubicacion_mty <- c(25.6695, -100.3099)
+r <- 15000
+
+buscar_plaza <- function(nombre) {
+  res <- google_places(
+    search_string = nombre,
+    location = ubicacion_mty,
+    radius = r,
+    key = gmaps_key
+  )
+  
+  if (length(res$results) == 0) return(NULL)  # si no encuentra nada
+
+  tibble(
+    nombre_busqueda = nombre,
+    business_name = res$results$name[1],
+    business_rating = res$results$rating[1],
+    user_ratings_total = res$results$user_ratings_total[1],
+    place_id = res$results$place_id[1],
+    lat = res$results$geometry$location$lat[1],
+    lon = res$results$geometry$location$lng[1]
+  )
+}
+
+plazas_top_base <- map_dfr(plazas, buscar_plaza)
+plazas_top_base <- plazas_top_base[, !names(plazas_top_base) %in% c("nombre_busqueda")]
+```
+
+```{r}
+plazas_comerciales_zmm <- bind_rows(data_plazas_comerciales, plazas_top_base)
+plazas_comerciales_sf <- st_as_sf(plazas_comerciales_zmm, coords = c("lon", "lat"), crs = 4326)
+centros_comerciales_geo <- st_join(plazas_comerciales_sf, nuevo_leon_map["NOM_MUN"])
+centros_comerciales_geo <- centros_comerciales_geo %>%
+  distinct(business_name, .keep_all = TRUE)
+```
+
+
+## DF6 - Lugares Turisticos
+
+```{r}
+df6_filtrado <- df6 %>%
+  filter(
+    Año %in% c(2019, 2020, 2021, 2022, 2023, 2024))
+ggplot(df6_filtrado, aes(x = Fecha, y = Visitante, color = Lugar)) +
+  geom_line(linewidth = 1) +  # ← este faltaba
+  labs(title = "Visitantes Lugares Turísticos",
+       subtitle = "Serie mensual 2019–2024",
+       x = "Año",
+       y = "Miles de Visitantes",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+```
+
+```{r}
+df6_filtrado_sin_pf <- df6_filtrado %>%
+  filter(Lugar != "Vistantes Parque F.")
+ggplot(df6_filtrado_sin_pf, aes(x = Fecha, y = Visitante, color = Lugar)) +
+  geom_line(linewidth = 1) +  # ← este faltaba
+  labs(title = "Visitantes Lugares Turísticos",
+       subtitle = "Serie mensual 2019–2024",
+       x = "Año",
+       y = "Miles de Visitantes",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+```
+
+# ESDA (I)
+### Nuevo León
+
+```{r}
+tmap_mode("view")
+```
+
+```{r}
+leaflet(data = nuevo_leon_map) %>%
+  addTiles() %>%
+  addPolygons(
+    fillColor = "coral",
+    weight = 1,
+    color = "white",
+    fillOpacity = 0.8,
+    label = ~NOM_MUN,
+    highlight = highlightOptions(
+      weight = 2,
+      color = "#666",
+      fillOpacity = 0.9,
+      bringToFront = TRUE
+    )
+  )
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+tm_shape(nuevo_leon_map) +
+  tm_polygons(col = "lightgray", border.col = "white", lwd = 0.5) +
+  tm_text("NOM_MUN", size = "AREA", auto.placement = TRUE) +
+  tm_compass(position = c("left", "bottom")) +
+  tm_layout(
+    main.title = "Municipios de Nuevo León",
+    title.size = 1.2,
+    legend.outside = TRUE,
+    asp = 0,
+    bg.color = "white"
+  )
+```
+
+### Plazas
+
+```{r}
+centros_comerciales_zmm <- centros_comerciales_geo %>% 
+  st_drop_geometry() %>%
+  count(NOM_MUN) %>%
+  rename(top_plazas_registradas = n)
+ZMM_map <- ZMM_map %>%
+  left_join(centros_comerciales_zmm, by = c("NOM_MUN" = "NOM_MUN"))
+```
+
+```{r}
+zmm_plazas_map <- centros_comerciales_geo %>%
+  mutate(
+    Longitud = st_coordinates(.)[, 1],
+    Latitud = st_coordinates(.)[, 2]
+  )
+```
+
+```{r}
+leaflet() %>%
+  addTiles() %>%
+  addHeatmap(data = zmm_plazas_map,
+             lng = ~Longitud, lat = ~Latitud,
+             blur = 20, max = 0.05, radius = 15,
+             group = "Plazas")
+```
+
+
+### Lugares Turísticos
+```{r}
+df6_2019 <- df6 %>% filter(Año == 2019)
+leaflet(df6_2019) %>%
+  addTiles() %>%
+  addHeatmap(
+    lng = ~Longitud,  
+    lat = ~Latitud,
+    intensity = ~Visitante,
+    blur = 20,
+    radius = 15,
+    max = 1
+  )
+
+df6_2020 <- df6 %>% filter(Año == 2020)
+leaflet(df6_2020) %>%
+  addTiles() %>%
+  addHeatmap(
+    lng = ~Longitud,  
+    lat = ~Latitud,
+    intensity = ~Visitante,
+    blur = 20,
+    radius = 15,
+    max = 1
+  )
+
+df6_2021 <- df6 %>% filter(Año == 2021)
+leaflet(df6_2021) %>%
+  addTiles() %>%
+  addHeatmap(
+    lng = ~Longitud,  
+    lat = ~Latitud,
+    intensity = ~Visitante,
+    blur = 20,
+    radius = 15,
+    max = 1
+  )
+
+df6_2022 <- df6 %>% filter(Año == 2022)
+leaflet(df6_2022) %>%
+  addTiles() %>%
+  addHeatmap(
+    lng = ~Longitud,  
+    lat = ~Latitud,
+    intensity = ~Visitante,
+    blur = 20,
+    radius = 15,
+    max = 1
+  )
+
+df6_2023 <- df6 %>% filter(Año == 2023)
+leaflet(df6_2023) %>%
+  addTiles() %>%
+  addHeatmap(
+    lng = ~Longitud,  
+    lat = ~Latitud,
+    intensity = ~Visitante,
+    blur = 20,
+    radius = 15,
+    max = 1
+  )
+
+df6_2024 <- df6 %>% filter(Año == 2024)
+leaflet(df6_2024) %>%
+  addTiles() %>%
+  addHeatmap(
+    lng = ~Longitud,  
+    lat = ~Latitud,
+    intensity = ~Visitante,
+    blur = 20,
+    radius = 15,
+    max = 1
+  )
+```
+
+
+# ANÁLISIS DE SENTIMIENTOS
+```{r}
+data_centros_comerciales <- centros_comerciales_geo
+```
+
+```{r}
+data_centros_comerciales_top_ratings <- data_centros_comerciales %>% slice_max(business_rating, n = 10)
+data_centros_comerciales_low_ratings <- data_centros_comerciales %>% slice_min(business_rating, n = 10)
+```
+
+### Reviews Plazas
+```{r}
+### Lets visualize the reviews information by coffee shop
+top_ratings_plot <- ggplot(data_centros_comerciales_top_ratings, aes(x=reorder(business_name,business_rating), y=business_rating)) +
+  geom_bar(stat="identity", fill="lightblue") + 
+  labs(title="Hospitals - Top 10 Centros COmerciales", subtitle = "Zona Metropolitana de Monterrey") + 
+  coord_flip()
+top_ratings_plot
+```
+
+```{r}
+ggplot(data_centros_comerciales_top_ratings, 
+                           aes(x = reorder(business_name, business_rating), 
+                               y = business_rating)) +
+  geom_col(fill = "steelblue", width = 0.6) + 
+  coord_flip() +
+  labs(
+    title = "Top 10 Centros Comerciales Mejor Calificados",
+    subtitle = "Zona Metropolitana de Monterrey",
+    x = NULL,
+    y = "Calificación del Negocio"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    axis.text.y = element_text(face = "bold"),
+    axis.text.x = element_text(size = 10),
+    panel.grid.major.y = element_blank()
+  ) +
+  scale_y_continuous(limits = c(0, 5), breaks = seq(0, 5, 0.5))
+```
+
+```{r}
+top_reviews_plot <- ggplot(data_centros_comerciales_top_ratings, aes(x=reorder(business_name,user_ratings_total), y=user_ratings_total)) + 
+  geom_bar(stat="identity", fill="lightblue") +
+  labs(title="Hospitals - Top 10 User Reviews", subtitle = "ZMM") + 
+  coord_flip()
+top_reviews_plot
+```
+
+```{r}
+ggplot(data_centros_comerciales_top_ratings, 
+       aes(x = reorder(business_name, user_ratings_total), 
+           y = user_ratings_total)) +
+  geom_col(fill = "steelblue", width = 0.6) + 
+  coord_flip() +
+  labs(
+    title = "Top 10 Mejores Centros Comerciales",
+    subtitle = "Zona Metropolitana de Monterrey",
+    x = NULL,
+    y = "Total de Reseñas"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    axis.text.y = element_text(face = "bold"),
+    axis.text.x = element_text(size = 10),
+    panel.grid.major.y = element_blank()
+  ) +
+  scale_y_continuous(labels = scales::comma)
+```
+
+
+```{r}
+low_users_plot <- ggplot(data_centros_comerciales_low_ratings, aes(x=reorder(business_name,business_rating), y=business_rating)) + 
+  geom_bar(stat="identity", fill="lightpink") + 
+  labs(title="Hospitales - Lowest 10 User Ratings", subtitle = "ZMM") + 
+  coord_flip()
+low_users_plot
+```
+```{r}
+ggplot(data_centros_comerciales_low_ratings, 
+                           aes(x = reorder(business_name, business_rating), 
+                               y = business_rating)) +
+  geom_col(fill = "lightpink", width = 0.6) + 
+  coord_flip() +
+  labs(
+    title = "Top 10 Centros Comerciales Peor Calificados",
+    subtitle = "Zona Metropolitana de Monterrey",
+    x = NULL,
+    y = "Calificación del Negocio"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    axis.text.y = element_text(face = "bold"),
+    axis.text.x = element_text(size = 10),
+    panel.grid.major.y = element_blank()
+  ) +
+  scale_y_continuous(limits = c(0, 5), breaks = seq(0, 5, 0.5))
+```
+
+
+```{r}
+low_users_plot <- ggplot(data_centros_comerciales_low_ratings, aes(x=reorder(business_name,user_ratings_total), y=user_ratings_total)) + 
+  geom_bar(stat="identity", fill="lightpink")+ 
+  labs(title="Hospitales - Lowest 10 Business Reviews", subtitle = "ZMM") + 
+  coord_flip()
+low_users_plot
+```
+
+```{r}
+ggplot(data_centros_comerciales_low_ratings, 
+       aes(x = reorder(business_name, user_ratings_total), 
+           y = user_ratings_total)) +
+  geom_col(fill = "lightpink", width = 0.6) + 
+  coord_flip() +
+  labs(
+    title = "Top 10 Peores Centros Comerciales",
+    subtitle = "Zona Metropolitana de Monterrey",
+    x = NULL,
+    y = "Total de Reseñas"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    axis.text.y = element_text(face = "bold"),
+    axis.text.x = element_text(size = 10),
+    panel.grid.major.y = element_blank()
+  ) +
+  scale_y_continuous(labels = scales::comma)
+```
+
+### Reviews Texto Plazas
+```{r}
+reviews_top_ratings <- google_place_details(place_id = data_centros_comerciales_top_ratings$place_id[10], key = gmaps_key)
+reviews_low_ratings <- google_place_details(place_id = data_centros_comerciales_low_ratings$place_id[10], key = gmaps_key)
+```
+
+```{r}
+top_ratings_text  <- reviews_top_ratings$result$reviews$text
+top_ratings_doc   <- Corpus(VectorSource(top_ratings_text))
+low_ratings_text  <- reviews_low_ratings$result$reviews$text
+low_ratings_doc   <- Corpus(VectorSource(low_ratings_text))
+```
+
+```{r, message=FALSE, warning=FALSE}
+### Clean the text data
+options(warn=-1)
+top_ratings_doc <- top_ratings_doc %>% tm_map(removeNumbers) %>% tm_map(removePunctuation) %>% tm_map(stripWhitespace)
+top_ratings_doc <- tm_map(top_ratings_doc, content_transformer(tolower))
+top_ratings_doc <- tm_map(top_ratings_doc, removeWords, stopwords("english"))
+```
+
+```{r, message=FALSE, warning=FALSE}
+options(warn=-1)
+low_ratings_doc <- low_ratings_doc %>% tm_map(removeNumbers) %>% tm_map(removePunctuation) %>% tm_map(stripWhitespace)
+low_ratings_doc <- tm_map(low_ratings_doc, content_transformer(tolower))
+low_ratings_doc <- tm_map(low_ratings_doc, removeWords, stopwords("english"))
+```
+
+```{r}
+### Lets create a dataframe containing each word in the first column and their frequency in the second column.
+options(warn=-1)
+dtm_top <- TermDocumentMatrix(top_ratings_doc) 
+matrix_top <- as.matrix(dtm_top) 
+words_top <- sort(rowSums(matrix_top),decreasing=TRUE) 
+words_top_df <- data.frame(word = names(words_top),freq=words_top)
+# write.csv(words_top_df, "D:\\CD2001C_AD2024\\Power_BI_Data_AD2024\\wordcloud_a.csv", row.names=TRUE)
+```
+
+```{r}
+options(warn=-1)
+dtm_low <- TermDocumentMatrix(low_ratings_doc) 
+matrix_low <- as.matrix(dtm_low) 
+words_low <- sort(rowSums(matrix_low),decreasing=TRUE) 
+words_low_df <- data.frame(word = names(words_low),freq=words_low)
+```
+
+```{r, message=FALSE, warning=FALSE}
+### We can now generate the word cloud according to the top and low ratings reviews.
+set.seed(1234) # for reproducibility 
+### top ratings 
+# top_raiting_wc<-wordcloud(words = words_top_df$word, freq = words_top_df$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+top_rating_wc <- wordcloud2(data = words_top_df, color = "random-dark", size = 0.6, shape = "circle")
+top_rating_wc
+### low ratings
+#low_raiting_wc<-wordcloud(words = words_low_df$word, freq = words_low_df$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+low_rating_wc <- wordcloud2(data = words_low_df, color = "random-dark", size = 0.6, shape = "circle")
+low_rating_wc
+```
+
+### Reviews Texto Español
+```{r}
+## request more details about the restaurant using google_place_details()
+plazas_reviews <- google_place_details(place_id = data_centros_comerciales$place_id[66], language = "es", key = "AIzaSyDMtkIEvUpFccyUCGxLgXO-TzTcERfzJ3o")
+```
+
+
+```{r, warning=FALSE}
+### Based on google reviews lets generate a vector containing only the text.
+### Corpus is a collection of written texts or a body of writing on a particular subject.
+### Cleaning text data. 
+plazas_reviews_text  <- plazas_reviews$result$reviews$text
+plazas_reviews_doc   <- Corpus(VectorSource(plazas_reviews_text))   ### Tokenization: Break down the text into individual words or tokens. 
+plazas_reviews_doc <- plazas_reviews_doc %>% tm_map(removeNumbers) %>% tm_map(removePunctuation) %>% tm_map(stripWhitespace)
+plazas_reviews_doc <- tm_map(plazas_reviews_doc, content_transformer(tolower))
+plazas_reviews_doc <- tm_map(plazas_reviews_doc, removeWords, stopwords("spanish"))
+```
+
+```{r}
+dtm_plazas_reviews <- TermDocumentMatrix(plazas_reviews_doc) 
+matrix <- as.matrix(dtm_plazas_reviews) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+words_df <- data.frame(word = names(words),freq=words)
+```
+
+```{r, message=FALSE, warning=FALSE}
+### Word cloud of 50 hospitals around the starting point (Parque Fundidora)
+### words with frequency below min.freq will not be plotted
+# wordcloud(words = words_df$word, freq = words_df$freq, min.freq = 5, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+```
+
+```{r}
+### Word clouds are a visual representation of text data where words are arranged in a cluster. The size of each word reflects its frequency or importance in the data set.
+wordcloud2(data = words_df, color = "random-dark", size = 0.5, shape = "circle")
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+### term matrix is a table containing the frequency of the words.
+tdm_sparse <- TermDocumentMatrix(plazas_reviews_doc, control = list(weighting = weightTfIdf))
+tdm_m_sparse <- as.matrix(tdm_sparse)
+```
+
+```{r}
+# lets display frequency of words 
+term_freq <- rowSums(tdm_m_sparse)
+term_freq_sorted <- sort(term_freq, decreasing = TRUE)
+tdm_d_sparse <- data.frame(word = names(term_freq_sorted), freq = term_freq_sorted)
+
+# lets display the top 10 most frequent words
+head(tdm_d_sparse, 10)
+```
+
+```{r}
+# we create a word cloud to visualize the most frequent words in the google reviews
+# wordcloud(words = tdm_d_sparse$word, freq = tdm_d_sparse$freq, min.freq = 4, max.words = 100, colors = brewer.pal(8, "Dark2"))
+wordcloud2(data = tdm_d_sparse, color = "random-dark", size = 0.6, shape = "circle")
+```
+
+```{r}
+# lets convert review column of dataframe to character vector so we can generate sentiment scores
+text <- iconv(plazas_reviews_text)
+```
+
+```{r}
+# Syuzhet method: It is an algorithm used to extract emotions from a sentence. It is a sentiment lexicon that can be used with non-English texts.
+syuzhet_vector <- get_sentiment(text, method = "syuzhet") ### get_sentiment() function is used to analyze sentiment. 
+
+# See first row of vector
+head(syuzhet_vector)
+
+# See summary statistics of vector
+summary(syuzhet_vector)
+```
+
+#### SENTIMENT HISTOGRAM
+
+```{r}
+# Using the full dataset for sentiment analysis might still 
+text_sampled <- iconv(plazas_reviews_text)
+syuzhet_vector_sampled <- get_sentiment(text_sampled, method = "syuzhet")
+```
+
+```{r}
+ggplot(data.frame(syuzhet_vector_sampled), aes(x = syuzhet_vector_sampled)) + 
+  geom_histogram(binwidth = 0.1, fill = "blue", color = "black") + 
+  labs(title = "Sentiment Distribution using Syuzhet Method (Sampled Data)", x = "Sentiment Score", y = "Frequency") + 
+  theme_minimal()
+```
+```{r}
+ggplot(data.frame(syuzhet_vector_sampled), aes(x = syuzhet_vector_sampled)) + 
+  geom_histogram(binwidth = 0.1, fill = "#3182bd", color = "white", alpha = 0.9) +
+  labs(
+    title = "Distribución de Sentimientos (Método Syuzhet)",
+    subtitle = "Valores de sentimiento en muestra analizada",
+    x = "Puntaje de Sentimiento",
+    y = "Frecuencia"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    axis.text = element_text(color = "gray30"),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major.y = element_line(color = "gray85"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+
+#### BAR PLOT OF EMOTIONS
+
+```{r}
+nrc_sampled <- get_nrc_sentiment(text_sampled)    ### sentiment dictionary to calculate the presence of eight different emotions and their corresponding valence in a text file
+nrct_sampled <- data.frame(t(nrc_sampled))
+nrcs_sampled <- data.frame(rowSums(nrct_sampled))
+nrcs_sampled <- cbind("sentiment" = rownames(nrcs_sampled), nrcs_sampled)
+rownames(nrcs_sampled) <- NULL
+names(nrcs_sampled)[1] <- "sentiment"
+names(nrcs_sampled)[2] <- "frequency"
+nrcs_sampled <- nrcs_sampled %>% mutate(percent = frequency/sum(frequency))
+nrcs2_sampled <- nrcs_sampled[1:8, ]
+colnames(nrcs2_sampled)[1] <- "emotion"
+```
+
+```{r}
+### 1) The bar plot illustrating the distribution of emotions based on sentiment analysis using the NRC lexicon on the google reviews
+### 2) Each bar represents a different emotion, and the height of the bar indicates the frequency of that emotion within the text data.
+ggplot(nrcs2_sampled, aes(x = reorder(emotion, -frequency), y = frequency, fill = emotion)) + 
+  geom_bar(stat = "identity") + 
+  labs(title = "Emotion Distribution (Sampled Data)", x = "Emotion", y = "Frequency") + 
+  theme_minimal() + 
+  scale_fill_brewer(palette = "Set3")
+```
+```{r}
+ggplot(nrcs2_sampled, aes(x = reorder(emotion, frequency), y = frequency, fill = emotion)) + 
+  geom_col(show.legend = FALSE, width = 0.7) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set3") +
+  labs(
+    title = "Distribución de Emociones Detectadas",
+    subtitle = "Basado en datos muestreados con NRC Lexicon",
+    x = "Emoción",
+    y = "Frecuencia"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    axis.text = element_text(color = "gray20"),
+    axis.title = element_text(face = "bold"),
+    panel.grid.major.y = element_blank()
+  )
+```
+
+
+#### BAR PLOT OF MOST POPULAR WORDS
+
+```{r}
+### 1) The output is a horizontal bar plot illustrating the frequency of the top 10 most popular words in the text data.
+### 2) Each bar represents a word, and the length of the bar indicates the frequency of that word in the dataset. 
+tdm_d_sparse <- tdm_d_sparse[1:10, ]
+tdm_d_sparse$word <- reorder(tdm_d_sparse$word, tdm_d_sparse$freq)
+ggplot(tdm_d_sparse, aes(x = word, y = freq, fill = word)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() + 
+  labs(title = "Most Popular Words", x = "Word", y = "Frequency") + 
+  theme_minimal()
+```
+
+
+#### PIE CHART OF SENTIMENT DISTRIBUTION
+
+```{r}
+# lets create a data frame with sentiment and count
+sentiment_df <- data.frame(sentiment = c("Positive", "Negative", "Neutral"), count = c(sum(syuzhet_vector_sampled > 0), sum(syuzhet_vector_sampled < 0), sum(syuzhet_vector_sampled == 0)))
+```
+
+```{r}
+# Create a pie chart
+### 1) The output is a pie chart illustrating the distribution of sentiment categories within the dataset. 
+### 2) Each segment of the pie chart represents a sentiment category (“Positive”, “Negative”, “Neutral”), and the size of each segment corresponds to the count of that sentiment category in the dataset. 
+ggplot(sentiment_df, aes(x = "", y = count, fill = sentiment)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  labs(title = "Sentiment Distribution", x = "", y = "") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3")
+```
+
+```{r}
+ggplot(sentiment_df, aes(x = "", y = count, fill = sentiment)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y", start = 0) +
+  labs(
+    title = "Distribución de Sentimientos",
+    subtitle = "Análisis basado en texto muestreado",
+    fill = "Sentimiento"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = "right"
+  ) +
+  scale_fill_brewer(palette = "Set3")
+```
+
+
+
+# GENERACIÓN INDICADOR CLAVE
+## Ingreso por turista
+```{r}
+df_IND <- df1 %>%
+  filter(Fecha >= as.Date("2019-01-01")) %>%
+  mutate(ingreso_por_turista = (DET * 1000000) / LLT_Total)
+```
+
+```{r}
+ggplot(df_IND, aes(x = Fecha, y = ingreso_por_turista)) +
+  geom_line(color = "#1f77b4", size = 1) +
+  labs(title = "Ingreso por Turista",
+       subtitle = "Serie mensual 2019–2024",
+       x = "Año",
+       y = "($) Pesos",
+       caption = "Fuente: Secretaría de Turismo") +
+  scale_y_continuous(labels = label_comma()) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(color = "gray40"),
+    plot.caption = element_text(size = 9, hjust = 1, color = "gray60")
+  )
+```
+
+```{r}
+q1 <- quantile(df_IND$ingreso_por_turista, 0.25)
+q2 <- median(df_IND$ingreso_por_turista)
+q3 <- quantile(df_IND$ingreso_por_turista, 0.75)
+
+df_IND$clasificacion_ingreso <- case_when(
+  df_IND$ingreso_por_turista <= q1 ~ "Gasto Bajo (Riesgo)",
+  df_IND$ingreso_por_turista > q1 & df_IND
+  $ingreso_por_turista <= q3 ~ "Gasto Promedio (Mejora)",
+  df_IND$ingreso_por_turista > q3 ~ "Gasto Alto (Oportunidad)"
+)
+```
+
+```{r}
+df_IND$clasificacion_ingreso <- factor(df_IND$clasificacion_ingreso,
+                                     levels = c("Gasto Bajo (Riesgo)",
+                                                "Gasto Promedio (Mejora)",
+                                                "Gasto Alto (Oportunidad)"))
+
+df_IND %>%
+  group_by(clasificacion_ingreso) %>%
+  summarise(
+    ingreso_minimo = min(ingreso_por_turista, na.rm = TRUE),
+    ingreso_maximo = max(ingreso_por_turista, na.rm = TRUE)
+  )
+```
+
+```{r, message=FALSE, warning=FALSE}
+df_IND <- df_IND %>%
+  mutate(clasificacion_ingreso = case_when(
+    ingreso_por_turista <= 7758.548 ~ "Gasto Bajo (Riesgo)",
+    ingreso_por_turista > 7758.548 & ingreso_por_turista <= 9644.197 ~ "Gasto Promedio (Mejora)",
+    ingreso_por_turista > 9644.197 ~ "Gasto Alto (Oportunidad)"
+  ))
+
+rangos_ingreso <- data.frame(
+  clasificacion_ingreso = c("Gasto Bajo (Riesgo)", "Gasto Promedio (Mejora)", "Gasto Alto (Oportunidad)"),
+  ingreso_minimo = c(6645.255	, 7787.173, 9704.338),
+  ingreso_maximo = c(7758.548, 9644.197, 11382.901),
+  color = c("rgba(255, 0, 0, 0.2)",     
+            "rgba(255, 255, 0, 0.2)",   
+            "rgba(0, 128, 0, 0.2)")   
+)
+
+grafico_ingreso <- plot_ly()
+
+for (i in 1:nrow(rangos_ingreso)) {
+  grafico_ingreso <- add_trace(grafico_ingreso,
+    x = c(min(df_IND$Fecha), max(df_IND$Fecha), max(df_IND$Fecha), min(df_IND$Fecha)),
+    y = c(rangos_ingreso$ingreso_minimo[i], rangos_ingreso$ingreso_minimo[i],
+          rangos_ingreso$ingreso_maximo[i], rangos_ingreso$ingreso_maximo[i]),
+    type = 'scatter',
+    mode = 'none',
+    fill = 'toself',
+    fillcolor = rangos_ingreso$color[i],
+    line = list(color = 'transparent'),
+    name = rangos_ingreso$clasificacion_ingreso[i],
+    hoverinfo = "none",
+    showlegend = TRUE
+  )
+}
+
+grafico_ingreso <- add_trace(grafico_ingreso,
+  data = df_IND,
+  x = ~Fecha,
+  y = ~ingreso_por_turista,
+  type = 'scatter',
+  mode = 'lines+markers',
+  line = list(color = '#2ca02c'),
+  marker = list(color = '#2ca02c'),
+  name = "Ingreso por Turista",
+  hoverinfo = 'text',
+  text = ~paste("Fecha:", format(Fecha, "%b %Y"),
+                "<br>Ingreso por Turista: $", round(ingreso_por_turista, 2),
+                "<br>Clasificación:", clasificacion_ingreso)
+)
+
+grafico_ingreso <- layout(grafico_ingreso,
+  title = list(text = "<b>Ingreso Promedio por Turista (Últimos años)</b>"),
+  xaxis = list(title = "Fecha"),
+  yaxis = list(title = "Ingreso por Turista (MXN)"),
+  hovermode = "closest"
+)
+
+grafico_ingreso
+```
+
+
+
+
+
+
+
+

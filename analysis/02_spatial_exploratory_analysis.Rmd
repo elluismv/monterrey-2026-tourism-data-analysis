@@ -1,0 +1,596 @@
+---
+title: "Untitled"
+output: html_document
+date: "2025-04-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r setup, include=FALSE}
+# data analysis 
+library(dplyr)            # grammar of data manipulation helping to resolve data manipulation difficulties 
+# library(Hmisc)            # useful functions for data analysis and high - level graphics
+library(foreign)          # read data stored by Minitab, SPSS, Stata
+library(openxlsx)         # open, read, write,and edit xlsx files 
+library(tidyverse)        # collection of R packages designed for data science
+
+# visualization 
+library(ggmap)            # spatial data visualization 
+library(rgeoda)           # spatial data analysis based on software GeoDa
+library(ggplot2)          # Grammar of graphics. System for declarative creating graphics
+# library(corrplot)         # provides a visual exploratory tool on correlation matrix
+library(RColorBrewer)     # offers several color palettes
+library(leaflet)          # interactive maps
+library(leafsync)         # create small multiples of several leaflet web maps
+library(htmltools)        # tools for HTML generation and output 
+
+# others 
+library(rlang)            # collection of frameworks and APIs for programming with R
+library(classInt)         # methods for choosing univariate class intervals for mapping or other graphic purposes
+library(gridExtra)        # to arrange and combine plots for easy comparison
+library(knitr)            # integrates computing and reporting
+
+### Getting access to distance, reviews, and ratings by using Google Maps
+library(tm)               # a framework for text mining applications
+library(wordcloud)        # functionality to create pretty word clouds
+library(wordcloud2)       # 
+library(googleway)        # provides a mechanism to access various Google Maps APIs, including plotting a Google Map from R and overlaying it with shapes and markers, and retrieving data from the places, directions, roads, distances, geocoding, elevation and timezone APIs
+# library(gmapsdistance)    # allows to calculate distances for a database through Google maps
+# library(osrm)             # enables the computation of routes, trips, isochrones and travel distances matrices (travel time and kilometric distance).
+
+### Text Mining
+library(syuzhet)    # includes four sentiment dictionaries and provides a method for accessing the robust, but computationally expensive, sentiment extraction tool developed in the NLP group at Stanford.
+library(SnowballC)
+library(jpeg)
+library(grid)
+```
+
+```{r setup, include=FALSE}
+library(foreign)      # import external files
+library(dplyr)        # data manipulation 
+library(spdep)        # a collection of functions to create spatial weight matrix 
+library(tigris)       # allows to work with shapefiles
+library(rgeoda)       # spatial data analysis based on GeoDa
+library(RColorBrewer) # offers several color palettes 
+library(viridis)      # offers several color palettes
+library(ggplot2)      # to create plots and graphics from dataset 
+library(tmap)         # making maps so spatial data distributions are visualized
+library(sf)           # functions to encode spatial vector data 
+library(sp)           # classes and methods for spatial data 
+library(readxl)
+library(patchwork)
+library(dlookr)
+library(dplyr)
+library(stringr)
+library(leaflet)
+library(mapview)
+library(tidyr)
+```
+
+# Bases de Datos
+
+```{r setup, include=FALSE}
+df_mx_mun_map <- st_read("mx_maps/mx_mpios/Mexican Municipalities.shp")
+```
+
+```{r}
+nuevo_leon_map <- df_mx_mun_map %>%
+  filter(CVE_ENT == 19)
+mun_glosario <- data.frame(
+  CVEGEO = sprintf("190%02d", 1:51),
+  NOM_MUN = c(
+    "Abasolo", "Agualeguas", "Los Aldamas", "Allende", "Anáhuac", "Apodaca", "Aramberri", "Bustamante",
+    "Cadereyta Jiménez", "El Carmen", "Cerralvo", "Ciénega de Flores", "China", "Doctor Arroyo",
+    "Doctor Coss", "Doctor González", "Galeana", "García", "San Pedro Garza García", "General Bravo",
+    "General Escobedo", "General Terán", "General Treviño", "General Zaragoza", "General Zuazua",
+    "Guadalupe", "Los Herreras", "Higueras", "Hualahuises", "Iturbide", "Juárez", "Lampazos de Naranjo",
+    "Linares", "Marín", "Melchor Ocampo", "Mier y Noriega", "Mina", "Montemorelos", "Monterrey",
+    "Parás", "Pesquería", "Los Ramones", "Rayones", "Sabinas Hidalgo", "Salinas Victoria",
+    "San Nicolás de los Garza", "Hidalgo", "Santa Catarina", "Santiago", "Vallecillo", "Villaldama"
+  )
+)
+
+mun_glosario$CVEGEO <- as.numeric(mun_glosario$CVEGEO)
+nuevo_leon_map <- nuevo_leon_map %>%
+  left_join(mun_glosario, by = c("IDUNICO" = "CVEGEO"))
+```
+
+```{r}
+municipios_filtrados <- c(
+  "Mina","Hidalgo","García","Montemorelos","Abasolo", "Allende", "Apodaca", "Cadereyta Jiménez", 
+  "Ciénega de Flores","Bustamante","General Zuazua","General Escobedo",
+  "Doctor González", "El Carmen", "Escobedo", "General Terán", "Garcia",
+  "Guadalupe", "Hualahuises", "Juárez", "Linares", "Los Ramones", "Marín",
+  "Monterrey", "Pesquería", "Salinas Victoria", "San Nicolás de los Garza",
+  "San Pedro Garza García", "Santa Catarina", "Santiago", "Zuazua"
+)
+```
+
+```{r}
+zona_turistica_muni<- nuevo_leon_map %>%
+  filter(NOM_MUN %in% municipios_filtrados)
+```
+
+
+```{r}
+df_denue_turismo_CA <- read_sf("INEGI_DENUE_caracteristicas/INEGI_DENUE_19052025.shp", options = "ENCODING=LATIN1")
+df_denue_turismo_CO <- read_sf("INEGI_DENUE_conexas/INEGI_DENUE_19052025.shp", options = "ENCODING=LATIN1")
+```
+
+```{r}
+MTY_map <- read_sf("mapas_NL/conjunto_de_datos_Monterrey/190390001a.shp")
+SanPedro_map <- read_sf("mapas_NL/conjunto_de_datos_SanPedro/190190001a.shp")
+SantaCatarina_map <- read_sf("mapas_NL/conjunto_de_datos_SantaCatarina/190480001a.shp")
+GarciaMitras_map <- read_sf("mapas_NL/conjunto_de_datos_GarciaMitras/190180212a.shp")
+Santiago_map <- read_sf("mapas_NL/conjunto_de_datos_Santiago/190490001a.shp")
+Escobedo_map <- read_sf("mapas_NL/conjunto_de_datos_Escobedo/190210001a.shp")
+Apodaca_map <- read_sf("mapas_NL/conjunto_de_datos_Apodaca/190060001a.shp")
+SanNicolas_map <- read_sf("mapas_NL/conjunto_de_datos_SanNicolas/190460001a.shp")
+Guadalupe_map <- read_sf("mapas_NL/conjunto_de_datos_Guadalupe/190260001a.shp")
+Abasolo_map <- read_sf("mapas_NL/conjunto_de_datos_Abasolo/190010001a.shp")
+Allende_map <- read_sf("mapas_NL/conjunto_de_datos_Allende/190040001a.shp")
+Cadereyta_map <- read_sf("mapas_NL/conjunto_de_datos_Cadereyta/190090001a.shp")
+Cienega_map <- read_sf("mapas_NL/conjunto_de_datos_Cienega/190120001a.shp")
+Dr_Gonzalez_map <- read_sf("mapas_NL/conjunto_de_datos_Dr_gonzalez/190160001a.shp")
+El_Carmen_map <- read_sf("mapas_NL/conjunto_de_datos_El_carmen/190100001a.shp")
+General_Teran_map <- read_sf("mapas_NL/conjunto_de_datos_General_teran/190220001a.shp")
+Hualahuises_map <- read_sf("mapas_NL/conjunto_de_datos_Hualahuises/190290001a.shp")
+Juarez_map <- read_sf("mapas_NL/conjunto_de_datos_Juarez/190310001a.shp")
+Linares_map <- read_sf("mapas_NL/conjunto_de_datos_Linares/190330001a.shp")
+Los_Ramones_map <- read_sf("mapas_NL/conjunto_de_datos_Los_ramones/190420001a.shp")
+Marin_map <- read_sf("mapas_NL/conjunto_de_datos_Marin/190340001a.shp")
+Pesqueria_map <- read_sf("mapas_NL/conjunto_de_datos_Pesqueria/190410001a.shp")
+Salinas_Victoria_map <- read_sf("mapas_NL/conjunto_de_datos_Salinas_victoria/190450001a.shp")
+Zuazua_map <- read_sf("mapas_NL/conjunto_de_datos_Zuazua/190250001a.shp")
+Hidalgo_map <- read_sf("mapas_NL/conjunto_de_datos_Hidalgo/190470001a.shp")
+Bustamante_map <- read_sf("mapas_NL/conjunto_de_datos_Bustamante/190080001a.shp")
+Montemorelos_map <- read_sf("mapas_NL/conjunto_de_datos_Montemorelos/190380001a.shp")
+Mina_map <- read_sf("mapas_NL/conjunto_de_datos_Mina/190370001a.shp")
+```
+
+```{r}
+zona_turistica <- rbind(MTY_map,
+  SanPedro_map,
+  SantaCatarina_map,
+  GarciaMitras_map,
+  Santiago_map,
+  Escobedo_map,
+  Apodaca_map,
+  SanNicolas_map,
+  Guadalupe_map,
+  Abasolo_map,
+  Allende_map,
+  Cadereyta_map,
+  Cienega_map,
+  Dr_Gonzalez_map,
+  El_Carmen_map,
+  General_Teran_map,
+  Hualahuises_map,
+  Juarez_map,
+  Linares_map,
+  Los_Ramones_map,
+  Marin_map,
+  Pesqueria_map,
+  Salinas_Victoria_map,
+  Zuazua_map,
+  Hidalgo_map,
+  Bustamante_map,
+  Montemorelos_map,
+  Mina_map)
+```
+
+```{r}
+zona_turistica <- st_transform(zona_turistica, crs = 4326)
+```
+
+```{r}
+zona_turistica <- zona_turistica %>%
+  mutate(
+    cve_ent = substr(CVEGEO, 1, 2),
+    cve_mun = substr(CVEGEO, 3, 5),
+    cve_loc = substr(CVEGEO, 6, 9),
+    cve_ageb = substr(CVEGEO, 10, 13),
+  )
+```
+
+
+```{r}
+UE_turismo_CA <- df_denue_turismo_CA %>% 
+  st_drop_geometry() %>%
+  count(ageb, `nombre_act`) %>%
+  pivot_wider(names_from = `nombre_act`, values_from = n, values_fill = 0)
+
+UE_turismo_CA <- UE_turismo_CA %>%
+  mutate(n_alojamientos = 
+           `Hoteles sin otros servicios integrados` +
+           `Pensiones y casas de huéspedes` +
+           `Hoteles con otros servicios integrados` +
+           `Moteles` +
+           `Cabañas, villas y similares`)
+
+UE_turismo_CA <- UE_turismo_CA %>%
+  mutate(n_servicios_bienes_raices = 
+           `Inmobiliarias y corredores de bienes raíces` +
+           `Servicios de administración de bienes raíces`)
+
+UE_turismo_CA <- UE_turismo_CA %>%
+  rename(
+    n_tiendas_artesanias = `Comercio al por menor en tiendas de artesanías`,
+    n_agencias_viajes = `Agencias de viajes`
+  )
+
+zona_turistica <- zona_turistica %>%
+  left_join(UE_turismo_CA %>% dplyr::select(ageb,n_agencias_viajes,
+                                            n_tiendas_artesanias, n_alojamientos, 
+                                            n_servicios_bienes_raices), by =  c("cve_ageb" = "ageb"))
+
+```
+
+```{r}
+UE_turismo_CO <- df_denue_turismo_CO %>% 
+  st_drop_geometry() %>%
+  count(ageb, `nombre_act`) %>%
+  pivot_wider(names_from = `nombre_act`, values_from = n, values_fill = 0)
+
+UE_turismo_CO <- UE_turismo_CO %>%
+  mutate(
+    n_alimentos_bebidas = 
+      `Cafeterías, fuentes de sodas, neverías, refresquerías y similares` +
+      `Restaurantes con servicio de preparación de alimentos a la carta o de comida corrida` +
+      `Restaurantes con servicio de preparación de pizzas, hamburguesas, hot dogs y pollos rostizados para llevar` +
+      `Restaurantes con servicio de preparación de antojitos` +
+      `Restaurantes con servicio de preparación de tacos y tortas` +
+      `Servicios de preparación de otros alimentos para consumo inmediato`
+  )
+
+UE_turismo_CO <- UE_turismo_CO %>%
+  rename(
+    n_tiendas_conveniencia = `Comercio al por menor en minisupers`,
+    n_tiendas_ropa = `Comercio al por menor de ropa, excepto de bebé y lencería`
+  )
+
+zona_turistica <- zona_turistica %>%
+  left_join(UE_turismo_CO %>% dplyr::select(ageb,n_tiendas_conveniencia, n_tiendas_ropa,
+                                            n_alimentos_bebidas),by = c("cve_ageb" = "ageb"))
+```
+
+```{r}
+zona_turistica <- zona_turistica %>%
+  mutate(infraestructura_turistica = 
+           n_alojamientos + n_alimentos_bebidas + 
+           n_tiendas_conveniencia)
+```
+
+
+```{r}
+colnames(zona_turistica)
+```
+
+
+```{r}
+zona_turistica_map <- zona_turistica
+```
+
+```{r}
+colSums(is.na(zona_turistica))
+```
+
+
+```{r}
+zona_turistica <- zona_turistica %>%
+  mutate(across(
+    c(n_agencias_viajes, n_tiendas_artesanias, 
+      n_alojamientos, n_servicios_bienes_raices,
+      n_tiendas_conveniencia, n_tiendas_ropa, n_alimentos_bebidas,infraestructura_turistica),
+    ~replace_na(., 0)
+  ))
+```
+
+```{r}
+
+zona_turistica_map$centroid <- st_centroid(zona_turistica_map$geometry)
+zona_turistica_map$lon <- st_coordinates(zona_turistica_map$centroid)[, 1]
+zona_turistica_map$lat <- st_coordinates(zona_turistica_map$centroid)[, 2]
+zona_turistica_map$coordenadas <- paste0("Lon: ", round(zona_turistica_map$lon, 5),
+                                         ", Lat: ", round(zona_turistica_map$lat, 5))
+
+```
+
+```{r}
+tmap_mode("view")
+```
+
+
+# Mapa de Nuevo León de la Zona Turistica
+style="fixed", breaks = c(0, 10, 15,Inf)
+```{r setup, include=FALSE}
+tm_shape(zona_turistica_map) + 
+  tm_polygons(col = "infraestructura_turistica", palette="BuGn", style="quantile",
+              title="No. Establecimientos", id="coordenadas") +
+  tm_layout(
+    main.title ="Infraestructura Turística por AGEB",
+    title.size = 1.2,
+    legend.outside = TRUE,
+    asp = 0,
+    bg.color = "white"
+  )
+```
+
+```{r}
+swm_queen  <- poly2nb(zona_turistica, queen=TRUE)
+rswm_queen <- nb2listw(swm_queen, style="W", zero.policy = TRUE)
+```
+
+# Mapa Matriz de Conectividad
+```{r}
+zona_metropolitana_a <- as(zona_metropolitana, "Spatial")
+zona_metropolitana_centroid <- coordinates(zona_metropolitana_a) 
+
+nb_lines <- nb2lines(swm_queen, coords = zona_metropolitana_centroid, as_sf = TRUE)
+centroides <- st_centroid(zona_metropolitana)
+```
+
+```{r}
+tm_shape(zona_metropolitana) +
+  tm_polygons(border.col = "gray") +
+  tm_shape(nb_lines) +
+  tm_lines(col = "coral", lwd = 2.0) +
+  tm_shape(centroides) +
+  tm_dots(size = 0.1, col = "darkred", border.col = "black")
+```
+
+# Mapas de Infraestructura Turística
+```{r}
+hist(log(zona_turistica$infraestructura_turistica))
+moran.test((zona_turistica$infraestructura_turistica), rswm_queen)
+```
+
+```{r}
+zona_turistica$infraestructura_turistica_lag <- lag.listw(rswm_queen, zona_turistica$infraestructura_turistica, zero.policy=TRUE)
+```
+
+```{r setup, include=FALSE}
+tm_shape(zona_turistica) + 
+  tm_polygons(col = "infraestructura_turistica_lag", palette="BuGn", style="quantile", 
+              breaks = c(0,1, 3, 5, 7, 10, 15,Inf),
+              title="No. Establecimientos") +
+  tm_layout(
+    main.title ="Infraestructura Turística por AGEB",
+    title.size = 1.2,
+    legend.outside = TRUE,
+    asp = 0,
+    bg.color = "white"
+  )
+```
+
+```{r}
+queen_w<-queen_weights(zona_turistica)
+lisa_infraestructura_turistica_dist <- local_moran(queen_w, zona_turistica["infraestructura_turistica"])
+zona_turistica$cluster_infraestructura_turistica <- as.factor(lisa_infraestructura_turistica_dist$GetClusterIndicators())
+levels(zona_turistica$cluster_infraestructura_turistica) <- lisa_infraestructura_turistica_dist$GetLabels()
+
+ggplot(data = zona_turistica) +
+  geom_sf(aes(fill = cluster_infraestructura_turistica)) +
+  ggtitle(label = "Clúster No. Alojamientos", subtitle = "Zona Turística") +
+  theme_minimal()
+```
+
+
+```{r}
+zona_turistica$centroid <- st_centroid(zona_turistica_map$geometry)
+zona_turistica$lon <- st_coordinates(zona_turistica_map$centroid)[, 1]
+zona_turistica$lat <- st_coordinates(zona_turistica_map$centroid)[, 2]
+zona_turistica$coordenadas <- paste0("Lon: ", round(zona_turistica_map$lon, 5),
+                                         ", Lat: ", round(zona_turistica_map$lat, 5))
+```
+
+```{r}
+lugares <- data.frame(
+  Nombre = c("Parque Fundidora", "Cerro de la Silla", "Chipinque", "La Huasteca",
+             "Cola de Caballo", "Santiago Nuevo León", "Nido de los Aguiluchos",
+             "Grutas de García", "Grutas de Bustamante", "Mirador del Obispado",
+             "Fashion Drive", "Galerías Monterrey", "Arboleda", "Paseo La Fe",
+             "Pueblo Serena", "Paseo Santa Lucía", "La Macroplaza",
+             "Museo de Historia Mexicana", "Museo MARCO", "Catedral Metropolitana de Monterrey",
+             "Aeropuerto Internacional de Monterrey", "Estadio BBVA",
+             "Parque España", "Parque Rufino Tamayo"),
+  Latitud = c(25.67878182, 25.65649139, 25.59569212, 25.6495424, 25.38535744,
+              25.42924714, 25.66104975, 25.8547445, 26.51920324, 25.67574203,
+              25.65161845, 25.681393, 25.64951628, 25.72019823, 25.57734257,
+              25.67128074, 25.66992375, 25.67163397, 25.66463807, 25.66580065,
+              25.77879101, 25.66906973, 25.67814422, 25.64452914),
+  Longitud = c(-100.2842549, -100.2542191, -100.2641823, -100.4511278, -100.1629289,
+               -100.1433126, -100.461981, -100.5265115, -100.5084269, -100.3455327,
+               -100.3357053, -100.3548689, -100.3557, -100.2189674, -100.2479397,
+               -100.3067501, -100.3100519, -100.3064055, -100.3097378, -100.3097556,
+               -100.1149561, -100.2444036, -100.2804447, -100.3278144)
+)
+lugares_sf <- st_as_sf(lugares, coords = c("Longitud", "Latitud"), crs = 4326)
+```
+
+
+
+```{r setup, include=FALSE}
+tm_shape(zona_turistica) +
+  tm_polygons(
+    col = "cluster_infraestructura_turistica",
+    title = "Clúster Local Moran", alpha = 0.6,
+    palette = c("High-High" = "green", 
+      "Low-Low" = "red", 
+      "Low-High" = "lightblue", 
+      "High-Low" = "darkblue", 
+      "Not significant" = "grey",
+      "Isolated" = "yellow",
+      "Undefined" = "orange",
+      "Missing" = "white"
+      )
+  ) +
+  tm_layout(
+    main.title = "Clúster Infraestructura Turística",
+    main.title.size = 1.2,
+    legend.outside = TRUE,
+    frame = FALSE,
+    bg.color = "white"
+  )
+```
+
+
+```{r setup, include=FALSE}
+tm_shape(zona_turistica) +
+  tm_polygons(
+    col = "cluster_infraestructura_turistica",
+    title = "Clúster Local Moran", alpha = 0.6, id = "coordenadas",
+    palette = c(
+      "High-High" = "green", 
+      "Low-Low" = "red", 
+      "Low-High" = "lightblue", 
+      "High-Low" = "darkblue", 
+      "Not significant" = "grey",
+      "Isolated" = "yellow",
+      "Undefined" = "orange",
+      "Missing" = "white"
+    )
+  ) +
+  tm_shape(lugares_sf) +
+  tm_dots(
+    col = "violet", size = 1, 
+    popup.vars = c("Nombre"), 
+    id = "Nombre"
+  ) +
+  tm_layout(
+    main.title = "Clúster Infraestructura Turística y Lugares de Interés",
+    main.title.size = 1.2,
+    legend.outside = TRUE,
+    frame = FALSE,
+    bg.color = "white"
+  )
+```
+
+# Mapa de estaciones de ruta
+## Matrices  de Distancia
+
+```{r}
+library(googleway)
+library(gmapsdistance)  
+# library(osrm) 
+```
+
+```{r}
+#gmaps_key <- 'AIzaSyCCqHNHGYGtGrZwby18qFQeFFYZJKJTjdk'
+register_google(key = gmaps_key) 
+#zt_cun <- get_map("Cancún, Quintana Roo", zoom = 12)
+```
+
+```{r}
+lugares_paradas <- data.frame(
+  nombre = c(
+    "Parque Fundidora", "Cerro de la Silla", "Chipinque", "La Huasteca", "Cola de Caballo",
+    "Santiago Nuevo León", "Nido de los Aguiluchos", "Grutas de García", "Grutas de Bustamante",
+    "Mirador del Obispado", "Fashion Drive", "Galerías Monterrey", "Arboleda", "Paseo La Fe",
+    "Pueblo Serena", "Paseo Santa Lucía", "La Macroplaza", "Museo de Historia Mexicana",
+    "Museo MARCO", "Catedral Metropolitana de Monterrey", "Aeropuerto Internacional de Monterrey",
+    "Estadio BBVA", "Parque España", "Parque Rufino Tamayo"
+  ),
+  lat = c(
+    25.67878, 25.65649, 25.59569, 25.64954, 25.38536, 25.42925, 25.66105, 25.85474,
+    26.51920, 25.67574, 25.65162, 25.68139, 25.64952, 25.72019, 25.57734, 25.67128,
+    25.66992, 25.67163, 25.66464, 25.66580, 25.77879, 25.66907, 25.67181, 25.64453
+  ),
+  lon = c(
+    -100.28425, -100.25422, -100.26418, -100.45113, -100.16293, -100.14331, -100.46198,
+    -100.52651, -100.50843, -100.34553, -100.33571, -100.35487, -100.35570, -100.21897,
+    -100.24794, -100.30675, -100.31005, -100.30641, -100.30974, -100.30976, -100.11496,
+    -100.24440, -100.28044, -100.32781
+  )
+)
+```
+
+```{r}
+lugares_paradas$coord <- c(paste0(lugares_paradas$lat, ",", lugares_paradas$lon))
+```
+
+
+```{r}
+origins <- c("25.67878,-100.28425" ,"25.65649,-100.25422", "25.59569,-100.26418", "25.64954,-100.45113",
+             "25.38536,-100.16293", "25.42925,-100.14331", "25.66105,-100.46198","25.85474,-100.52651",
+             "26.5192,-100.50843",  "25.67574,-100.34553", "25.65162,-100.33571", "25.68139,-100.35487",
+             "25.64952,-100.3557",  "25.72019,-100.21897", "25.57734,-100.24794","25.67128,-100.30675",
+             "25.66992,-100.31005", "25.67163,-100.30641", "25.66464,-100.30974", "25.6658,-100.30976",
+             "25.77879,-100.11496", "25.66907,-100.2444",  "25.67181,-100.28044", "25.64453,-100.32781")
+destinations <- origins
+```
+
+```{r}
+#distances<-google_distance(origins=origins, destinations = destinations,mode = "driving", key = gmaps_key)
+#distance$destination_addresses
+#distance$origin_addresses
+```
+
+```{r}
+distances <- gmapsdistance(origin = origins,
+                        destination = destinations,
+                        mode = "driving", key = gmaps_key)
+```
+
+
+```{r}
+matriz_distancia <- distances$Distance/1000
+rownames(matriz_distancia) <- lugares_paradas$nombre[match(rownames(matriz_distancia), lugares_paradas$coord)]
+colnames(matriz_distancia) <- lugares_paradas$nombre[match(colnames(matriz_distancia), lugares_paradas$coord)]
+matriz_distancia
+```
+
+
+```{r}
+matriz_tiempo <- distances$Time/60
+rownames(matriz_tiempo) <- lugares_paradas$nombre[match(rownames(matriz_tiempo), lugares_paradas$coord)]
+colnames(matriz_tiempo) <- lugares_paradas$nombre[match(colnames(matriz_tiempo), lugares_paradas$coord)]
+matriz_tiempo
+```
+
+```{r}
+df_tiempo <- as.data.frame(matriz_tiempo)
+df_distancia <- as.data.frame(matriz_distancia) 
+```
+
+```{r}
+library(writexl)
+write_xlsx(
+  list(
+    "Tiempo" = df_tiempo,
+    "Distancias" = df_distancia
+  ),
+  path = "matrices_ruta.xlsx"
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
