@@ -4,6 +4,10 @@
   <img src="figures/1.png" width="750">
 </p>
 
+![R](https://img.shields.io/badge/R-276DC3?style=for-the-badge&logo=r&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Data Analytics](https://img.shields.io/badge/Data%20Analytics-Tourism-success?style=for-the-badge)
+![Status](https://img.shields.io/badge/Status-Completed-success?style=for-the-badge)
 
 ## Overview
 
@@ -116,8 +120,6 @@ Time series forecasting was performed for strategic tourism indicators using for
 - Python
 
 ---
-
-## Key Results
 
 ## Key Results
 
